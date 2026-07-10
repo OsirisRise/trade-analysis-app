@@ -47,7 +47,7 @@ class TestDexOfSymbol:
 class TestParseAssetCtxs:
     def test_parses_all_symbols(self, payload):
         parsed = parse_asset_ctxs(*payload)
-        assert set(parsed) == {"xyz:GOLD", "xyz:SILVER", "xyz:CL"}
+        assert set(parsed) == {"xyz:GOLD", "xyz:SILVER", "xyz:CL", "xyz:BRENTOIL"}
 
     def test_gold_fields_are_decimal_exact(self, payload):
         gold = parse_asset_ctxs(*payload)["xyz:GOLD"]
@@ -84,6 +84,40 @@ class TestBuildSnapshotRow:
         assert row.raw_payload["premium"] == "0.0006661795"
         assert row.instrument_id == instrument.id
         assert row.captured_at == captured_at
+
+
+class TestBrentSnapshotRow:
+    """xyz:BRENTOIL was missed by the original truncated universe check;
+    fixture entry captured live 2026-07-10."""
+
+    def test_brent_row_metrics(self, payload):
+        brent_ctx = parse_asset_ctxs(*payload)["xyz:BRENTOIL"]
+        instrument = Instrument(
+            id=uuid4(),
+            venue="Hyperliquid",
+            symbol="xyz:BRENTOIL",
+            underlying="brent",
+            funding_interval_minutes=60,
+        )
+        captured_at = datetime(2026, 7, 10, 15, 0, tzinfo=timezone.utc)
+
+        row = build_snapshot_row(instrument, brent_ctx, captured_at)
+
+        assert row.mark_price == Decimal("76.059")
+        assert row.oracle_price == Decimal("76.054")
+        # §7.1 premium: (76.059 - 76.054) / 76.054
+        assert row.premium_pct == Decimal("0.005") / Decimal("76.054")
+        # hourly funding 0.0000116848 × 8 and × 8760
+        assert row.funding_rate_8h_equiv == Decimal("0.0000934784")
+        assert row.funding_apr_est == Decimal("0.102358848")
+        # OI in USD: 2120733.6600000011 × 76.059 (~$161M, matches UI)
+        assert row.open_interest_usd == Decimal("2120733.6600000011") * Decimal(
+            "76.059"
+        )
+        # spread: 10000 × (76.0672 - 76.057) / 76.0595
+        assert row.spread_bps_est == Decimal("10000") * Decimal("0.0102") / Decimal(
+            "76.0595"
+        )
 
 
 class TestCollectSnapshots:

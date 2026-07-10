@@ -22,6 +22,14 @@
         "marginTableId": 20,
         "growthMode": "enabled",
         "lastGrowthModeChangeTime": "2026-01-06T14:22:02.431616165"
+      },
+      {
+        "szDecimals": 2,
+        "name": "xyz:BRENTOIL",
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "growthMode": "enabled",
+        "lastGrowthModeChangeTime": "2026-03-04T14:33:56.611209792"
       }
     ]
   },
@@ -70,6 +78,21 @@
         "71.168"
       ],
       "dayBaseVlm": "2549357.1539999996"
+    },
+    {
+      "funding": "0.0000116848",
+      "openInterest": "2120733.6600000011",
+      "prevDayPx": "76.102",
+      "dayNtlVlm": "109318949.3408200741",
+      "premium": "0.0001065033",
+      "oraclePx": "76.054",
+      "markPx": "76.059",
+      "midPx": "76.0595",
+      "impactPxs": [
+        "76.057",
+        "76.0672"
+      ],
+      "dayBaseVlm": "1435645.3400000005"
     }
   ]
 ]

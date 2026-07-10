@@ -38,3 +38,10 @@ canonical unless I tell you it's changed.
 
 ## Corrections log
 (Add an entry here every time I correct something, so it isn't repeated.)
+
+- 2026-07-10 — Wrongly concluded "no Brent market exists on Hyperliquid" and
+  skipped seeding it. Root cause: the universe check printed only the first 40
+  of 100 xyz-dex symbols, so `xyz:BRENTOIL` (~$109M day vol, ~$161M OI) was
+  never seen. Fixed in 0004_add_brent_instrument.sql. Lesson: when verifying
+  whether something exists in an API response, inspect the FULL list —
+  never a truncated/`head`-ed view.

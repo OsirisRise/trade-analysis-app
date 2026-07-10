@@ -62,6 +62,11 @@ class SnapshotRow:
 
 
 def load_active_hyperliquid_perps(conn: psycopg.Connection) -> list[Instrument]:
+    # PAXG guard: the instrument_type = 'perp' filter must stay. The
+    # Ethereum/tokenized_spot PAXG and XAUT rows are priced via CoinGecko
+    # (build step 8) because their §7.7 role is the funding-drag-free gold
+    # expression — never source them from Hyperliquid's PAXG-USDC perp,
+    # which is a different, funded instrument.
     rows = conn.execute(
         """
         SELECT id, venue, symbol, underlying, funding_interval_minutes

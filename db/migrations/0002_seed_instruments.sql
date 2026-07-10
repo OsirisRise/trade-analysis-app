@@ -10,9 +10,11 @@
 --       xyz:CL     (day vol ~$179M, OI ~$209M)   <- WTI crude
 --     The "km"/"mkts" (Kinetiq) dex also lists GOLD/SILVER/USOIL but showed
 --     zero volume/OI and stale marks, so it is not seeded.
---   * BRENT: no Brent market exists anywhere on Hyperliquid as of 2026-07-10
---     (blueprint §6 said "BRENTOIL" pending confirmation — confirmation FAILED,
---     so no row is seeded; add it if/when a venue lists one).
+--   * BRENT: this file originally claimed no Brent market existed on
+--     Hyperliquid. That was WRONG — the build-time check truncated the xyz
+--     universe list to its first 40 names (of 100) and missed xyz:BRENTOIL
+--     (~$109M day vol, ~$161M OI on 2026-07-10). Since this migration was
+--     already applied, the Brent row is added by 0004_add_brent_instrument.sql.
 --   * Ostium rows are seeded 'inactive' until the subgraph integration
 --     (build step 8) confirms live pair symbols.
 --   * PAXG/XAUT tokenized spot rows are active; they are priced via CoinGecko
@@ -40,7 +42,15 @@ VALUES
     ('Ostium', 'perp', 'CL/USD',  'crude_oil', 'Arbitrum', 'USDC',
      'Stork', NULL, true, true, true, 'inactive'),
 
-    -- Tokenized spot gold (no funding drag; priced via CoinGecko in step 8)
+    -- Tokenized spot gold (no funding drag; priced via CoinGecko in step 8).
+    --
+    -- WARNING — PAXG source confusion guard: Hyperliquid ALSO lists its own
+    -- leveraged PAXG-USDC perp (10x, hourly funding, OI) on the main dex.
+    -- That perp is NOT this instrument. This row is the SPOT TOKEN and must
+    -- always be priced from CoinGecko/spot token data, never from the
+    -- Hyperliquid PAXG perp: its whole role in the model (§7.7 worked
+    -- example) is being the funding-drag-free gold expression. Pulling its
+    -- price/metrics from a funded perp would silently destroy that contrast.
     ('Ethereum', 'tokenized_spot', 'PAXG', 'gold', 'Ethereum', NULL,
      'CoinGecko', NULL, false, false, false, 'active'),
     ('Ethereum', 'tokenized_spot', 'XAUT', 'gold', 'Ethereum', NULL,

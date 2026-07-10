@@ -23,11 +23,11 @@ Full spec: `onchain-commodities-mvp-blueprint.md` (canonical). Working rules:
 ## Setup
 
 ```bash
-# Postgres 17 (Homebrew, keg-only). LC_ALL is required on macOS or the
-# postmaster dies with "became multithreaded during startup".
-export LC_ALL=en_US.UTF-8
-/opt/homebrew/opt/postgresql@17/bin/pg_ctl -D /opt/homebrew/var/postgresql@17 \
-    -l /opt/homebrew/var/log/postgresql@17.log start
+# Postgres 17 (Homebrew, keg-only) runs as a background service: starts at
+# login, auto-restarts, and the generated launchd plist pins
+# LC_ALL=en_US.UTF-8 (without it the postmaster dies on macOS with
+# "became multithreaded during startup" — do not remove it).
+brew services start postgresql@17                              # once; persists
 /opt/homebrew/opt/postgresql@17/bin/createdb trade_analysis   # first time only
 
 # Python
@@ -68,11 +68,16 @@ tests/                   pytest suite + real fixture payload
 ## Venue notes (confirmed 2026-07-10)
 
 - Hyperliquid commodity perps live on the **xyz builder dex** (HIP-3), not the
-  main universe: `xyz:GOLD`, `xyz:SILVER`, `xyz:CL` (WTI). Query with
-  `{"type":"metaAndAssetCtxs","dex":"xyz"}`.
+  main universe: `xyz:GOLD`, `xyz:SILVER`, `xyz:CL` (WTI — the UI displays it
+  as "WTIOIL-USDC"), `xyz:BRENTOIL` (Brent). Query with
+  `{"type":"metaAndAssetCtxs","dex":"xyz"}`. The xyz dex has ~100 markets,
+  including other commodities (COPPER, NATGAS, TTF, PLATINUM, PALLADIUM,
+  URANIUM, ALUMINIUM, CORN, WHEAT) available for later expansion.
 - The `km`/`mkts` (Kinetiq) dex lists GOLD/SILVER/USOIL but had zero volume/OI
   and stale marks — not seeded.
-- **No Brent market exists on Hyperliquid**; the blueprint's `BRENTOIL` row
-  failed symbol confirmation and was not seeded.
+- **PAXG source guard:** Hyperliquid's main dex has a leveraged PAXG-USDC
+  perp. The seeded Ethereum/tokenized_spot PAXG row is NOT that instrument —
+  it must always be priced via CoinGecko spot data (its §7.7 role is the
+  funding-drag-free gold expression).
 - Ostium rows are seeded `inactive` until the subgraph integration (step 8)
   confirms pair symbols.
