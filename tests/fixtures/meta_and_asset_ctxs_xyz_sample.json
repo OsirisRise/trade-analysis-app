@@ -1,0 +1,75 @@
+[
+  {
+    "universe": [
+      {
+        "szDecimals": 4,
+        "name": "xyz:GOLD",
+        "maxLeverage": 25,
+        "marginTableId": 25
+      },
+      {
+        "szDecimals": 2,
+        "name": "xyz:SILVER",
+        "maxLeverage": 25,
+        "marginTableId": 25,
+        "growthMode": "enabled",
+        "lastGrowthModeChangeTime": "2025-12-27T14:46:13.933247634"
+      },
+      {
+        "szDecimals": 3,
+        "name": "xyz:CL",
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "growthMode": "enabled",
+        "lastGrowthModeChangeTime": "2026-01-06T14:22:02.431616165"
+      }
+    ]
+  },
+  [
+    {
+      "funding": "0.0000222526",
+      "openInterest": "33637.8658",
+      "prevDayPx": "4132.6",
+      "dayNtlVlm": "22668692.6404199935",
+      "premium": "0.0006661795",
+      "oraclePx": "4105.5",
+      "markPx": "4108.3",
+      "midPx": "4108.25",
+      "impactPxs": [
+        "4108.17",
+        "4108.3"
+      ],
+      "dayBaseVlm": "5511.8499"
+    },
+    {
+      "funding": "0.0000176978",
+      "openInterest": "1270926.8400000003",
+      "prevDayPx": "60.394",
+      "dayNtlVlm": "99055307.5569599569",
+      "premium": "0.0007351219",
+      "oraclePx": "59.786",
+      "markPx": "59.822",
+      "midPx": "59.8295",
+      "impactPxs": [
+        "59.829",
+        "59.8309"
+      ],
+      "dayBaseVlm": "1653301.0300000003"
+    },
+    {
+      "funding": "0.0000131842",
+      "openInterest": "2964479.3200000003",
+      "prevDayPx": "71.898",
+      "dayNtlVlm": "183218893.3423158526",
+      "premium": "0.0004146869",
+      "oraclePx": "71.138",
+      "markPx": "71.174",
+      "midPx": "71.167",
+      "impactPxs": [
+        "71.167",
+        "71.168"
+      ],
+      "dayBaseVlm": "2549357.1539999996"
+    }
+  ]
+]
