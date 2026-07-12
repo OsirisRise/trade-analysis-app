@@ -21,6 +21,10 @@ canonical unless I tell you it's changed.
   certainty from free data sources.
 - Use the exact field names, table schemas, and formulas from the blueprint
   (§5–§8) — don't invent alternatives or "improve" them without asking first.
+- Hyperliquid is REFERENCE-ONLY — never a trade candidate (Caleb can't
+  legally trade it from the US). Ostium is the only tradeable venue
+  (PAXG/XAUT tokenized spot are also tradeable). Anywhere trade candidates
+  get generated, filter instruments WHERE tradeable = true.
 
 ## Stack
 - PostgreSQL (jsonb for raw payloads/tags, UUID PKs; TimescaleDB added later
@@ -45,3 +49,14 @@ canonical unless I tell you it's changed.
   never seen. Fixed in 0004_add_brent_instrument.sql. Lesson: when verifying
   whether something exists in an API response, inspect the FULL list —
   never a truncated/`head`-ed view.
+- 2026-07-12 — Seeded a generic 'crude_oil' underlying (and mixed
+  'wti_crude'/'brent' codes) instead of per-grade codes. Two independent
+  sources (Ostium's own docs, a Hyperliquid pairs list) agree the real
+  vocabulary is `wti_crude_oil` / `brent_crude_oil` — canonical everywhere
+  now (0006_standardize_crude_vocabulary.sql). One commodity vocabulary
+  across theses, rules, and instruments, or the step-6 joins silently miss.
+- 2026-07-12 — hyperliquid_pairs.csv listed symbols (HG-PERP, NG-PERP,
+  XPT-PERP, XPD-PERP) that don't exist on Hyperliquid; the live xyz-dex
+  symbols are xyz:COPPER / xyz:NATGAS / xyz:PLATINUM / xyz:PALLADIUM.
+  Lesson: a third-party list identifies WHAT to check, never a symbol to
+  seed directly — always confirm the exact string against the live API.

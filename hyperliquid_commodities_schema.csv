@@ -1,0 +1,9 @@
+venue,symbol,underlying,category,subtype,display_name,instrument_type,quote_asset,source
+Hyperliquid,XAU-PERP,gold,commodity,metal,Gold,perp,USDC,https://hiperwire.io/explainers/trading-gold-silver-commodities-hyperliquid
+Hyperliquid,XAG-PERP,silver,commodity,metal,Silver,perp,USDC,https://hiperwire.io/explainers/trading-gold-silver-commodities-hyperliquid
+Hyperliquid,CL-PERP,wti_crude_oil,commodity,energy,WTI Crude Oil,perp,USDC,https://hiperwire.io/explainers/trading-gold-silver-commodities-hyperliquid
+Hyperliquid,BRENT-PERP,brent_crude_oil,commodity,energy,Brent Crude Oil,perp,USDC,https://x.com/therollupco/status/2065839213178679542
+Hyperliquid,HG-PERP,copper,commodity,metal,Copper,perp,USDC,https://x.com/therollupco/status/2065839213178679542
+Hyperliquid,NG-PERP,natural_gas,commodity,energy,Natural Gas,perp,USDC,https://x.com/therollupco/status/2065839213178679542
+Hyperliquid,XPT-PERP,platinum,commodity,metal,Platinum,perp,USDC,https://x.com/therollupco/status/2065839213178679542
+Hyperliquid,XPD-PERP,palladium,commodity,metal,Palladium,perp,USDC,https://x.com/therollupco/status/2065839213178679542

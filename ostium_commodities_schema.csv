@@ -1,0 +1,8 @@
+venue,symbol,underlying,category,subtype,display_name,quote_asset,instrument_type,max_leverage,opening_fee_bps,source
+Ostium,XAU/USD,gold,commodity,metal,Gold,USD,perp,50x,3-5,https://docs.ostium.com/traders/reference/markets
+Ostium,WTI/USD,wti_crude_oil,commodity,energy,WTI Crude Oil,USD,perp,50x,3-5,https://docs.ostium.com/traders/reference/markets
+Ostium,BRENT/USD,brent_crude_oil,commodity,energy,Brent Crude Oil,USD,perp,50x,3-5,https://docs.ostium.com/traders/reference/markets
+Ostium,XCU/USD,copper_spot,commodity,metal,Copper Spot,USD,perp,50x,3-5,https://docs.ostium.com/traders/reference/markets
+Ostium,XAG/USD,silver,commodity,metal,Silver,USD,perp,50x,3-5,https://docs.ostium.com/traders/reference/markets
+Ostium,XPT/USD,platinum,commodity,metal,Platinum,USD,perp,50x,3-5,https://docs.ostium.com/traders/reference/markets
+Ostium,XPD/USD,palladium,commodity,metal,Palladium,USD,perp,50x,3-5,https://docs.ostium.com/traders/reference/markets
