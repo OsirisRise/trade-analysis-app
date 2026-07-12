@@ -139,3 +139,14 @@ class TestCollectSnapshots:
         assert calls == ["xyz"]
         assert [r.symbol for r in rows] == ["xyz:GOLD", "xyz:CL"]
         assert all(r.captured_at == rows[0].captured_at for r in rows)
+        # no spot ledger provided -> reference stays NULL
+        assert all(r.reference_spot_price is None for r in rows)
+
+    def test_reference_spot_copied_by_underlying(self, payload):
+        instruments = [make_instrument("xyz:GOLD")]  # underlying = 'gold'
+        rows = collect_snapshots(
+            instruments,
+            fetch=lambda dex: payload,
+            spot_by_underlying={"gold": Decimal("4105.80"), "silver": Decimal("1")},
+        )
+        assert rows[0].reference_spot_price == Decimal("4105.80")

@@ -49,6 +49,7 @@ class SnapshotRow:
     mark_price: Decimal
     mid_price: Decimal | None
     oracle_price: Decimal | None
+    reference_spot_price: Decimal | None
     premium_pct: Decimal | None
     funding_rate_interval: Decimal | None
     funding_rate_8h_equiv: Decimal | None
@@ -81,7 +82,10 @@ def load_active_hyperliquid_perps(conn: psycopg.Connection) -> list[Instrument]:
 
 
 def build_snapshot_row(
-    instrument: Instrument, ctx: AssetCtx, captured_at: datetime
+    instrument: Instrument,
+    ctx: AssetCtx,
+    captured_at: datetime,
+    reference_spot_price: Decimal | None = None,
 ) -> SnapshotRow:
     prem = (
         calcs.premium_pct(ctx.mark_price, ctx.oracle_price)
@@ -110,6 +114,7 @@ def build_snapshot_row(
         mark_price=ctx.mark_price,
         mid_price=ctx.mid_price,
         oracle_price=ctx.oracle_price,
+        reference_spot_price=reference_spot_price,
         premium_pct=prem,
         funding_rate_interval=ctx.funding_rate_interval,
         funding_rate_8h_equiv=f8h,
@@ -127,10 +132,14 @@ def collect_snapshots(
     instruments: list[Instrument],
     captured_at: datetime | None = None,
     fetch=fetch_meta_and_asset_ctxs,
+    spot_by_underlying: dict | None = None,
 ) -> list[SnapshotRow]:
     """One API call per distinct dex (rate-limit friendly), then map
-    each instrument symbol to its asset context."""
+    each instrument symbol to its asset context. spot_by_underlying carries
+    the latest known reference spot per commodity (spot_prices ledger, 0008);
+    rows copy it so §7.4 tracking math has a same-row reference."""
     captured_at = captured_at or datetime.now(timezone.utc)
+    spot_by_underlying = spot_by_underlying or {}
     dexes = sorted({dex_of_symbol(i.symbol) for i in instruments})
     ctx_by_symbol: dict[str, AssetCtx] = {}
     for dex in dexes:
@@ -146,7 +155,14 @@ def collect_snapshots(
                 instrument.symbol,
             )
             continue
-        rows.append(build_snapshot_row(instrument, ctx, captured_at))
+        rows.append(
+            build_snapshot_row(
+                instrument,
+                ctx,
+                captured_at,
+                reference_spot_price=spot_by_underlying.get(instrument.underlying),
+            )
+        )
     return rows
 
 
@@ -157,16 +173,18 @@ def insert_snapshots(conn: psycopg.Connection, rows: list[SnapshotRow]) -> int:
                 """
                 INSERT INTO market_snapshots (
                     instrument_id, captured_at, mark_price, mid_price,
-                    oracle_price, premium_pct, funding_rate_interval,
-                    funding_rate_8h_equiv, funding_apr_est, open_interest_usd,
-                    day_volume_usd, impact_bid_price, impact_ask_price,
-                    spread_bps_est, raw_payload
+                    oracle_price, reference_spot_price, premium_pct,
+                    funding_rate_interval, funding_rate_8h_equiv,
+                    funding_apr_est, open_interest_usd, day_volume_usd,
+                    impact_bid_price, impact_ask_price, spread_bps_est,
+                    raw_payload
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                          %s, %s)
+                          %s, %s, %s)
                 """,
                 (
                     r.instrument_id, r.captured_at, r.mark_price, r.mid_price,
-                    r.oracle_price, r.premium_pct, r.funding_rate_interval,
+                    r.oracle_price, r.reference_spot_price, r.premium_pct,
+                    r.funding_rate_interval,
                     r.funding_rate_8h_equiv, r.funding_apr_est,
                     r.open_interest_usd, r.day_volume_usd, r.impact_bid_price,
                     r.impact_ask_price, r.spread_bps_est,
@@ -178,11 +196,17 @@ def insert_snapshots(conn: psycopg.Connection, rows: list[SnapshotRow]) -> int:
 
 
 def run(conn: psycopg.Connection, dry_run: bool = False) -> list[SnapshotRow]:
+    # Local import: spot_service also imports latest-spot reading; keep the
+    # modules import-cycle-free.
+    from onchain_console.spot_service import latest_spot_by_commodity
+
     instruments = load_active_hyperliquid_perps(conn)
     if not instruments:
         log.warning("no active Hyperliquid perp instruments seeded")
         return []
-    rows = collect_snapshots(instruments)
+    rows = collect_snapshots(
+        instruments, spot_by_underlying=latest_spot_by_commodity(conn)
+    )
     if dry_run:
         log.info("dry run — %d rows built, nothing written", len(rows))
     else:

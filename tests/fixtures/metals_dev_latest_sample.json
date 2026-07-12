@@ -1,0 +1,30 @@
+{
+  "_provenance": "Verbatim /v1/latest sample response from metals.dev docs (fetched 2026-07-12); currencies trimmed. Replace with a captured live payload once METALS_DEV_API_KEY exists.",
+  "status": "success",
+  "currency": "USD",
+  "unit": "toz",
+  "metals": {
+    "gold": 1923.86,
+    "silver": 22.905,
+    "platinum": 916.569,
+    "palladium": 1229.684,
+    "lbma_gold_am": 1929.75,
+    "lbma_gold_pm": 1927.75,
+    "lbma_silver": 23.005,
+    "copper": 0.2584,
+    "aluminum": 0.067,
+    "lead": 0.0649,
+    "nickel": 0.6355,
+    "zinc": 0.0745,
+    "lme_copper": 0.2599
+  },
+  "currencies": {
+    "EUR": 1.08798,
+    "GBP": 1.27026,
+    "USD": 1
+  },
+  "timestamps": {
+    "metal": "2023-07-05T06:16:02.829Z",
+    "currency": "2023-07-05T06:16:04.204Z"
+  }
+}

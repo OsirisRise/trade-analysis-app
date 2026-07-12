@@ -13,6 +13,8 @@ Full spec: `onchain-commodities-mvp-blueprint.md` (canonical). Working rules:
 
 - [x] 1. Schema + migrations + seed instruments & sensitivity rules
 - [x] 2. Hyperliquid snapshot service (M5) → `market_snapshots`
+- [x] 2b. Reference spot prices (Metals.Dev + EIA) → `spot_prices` ledger
+      + `reference_spot_price` stamping (daily cadence)
 - [ ] 3. Scoring engine (M6) — §7.3–§7.9 over snapshot history
 - [ ] 4. Event ingestion (M1) — GDELT + FRED + RSS + manual
 - [ ] 5. Rules tagging → LLM enrichment (M2)
@@ -43,14 +45,21 @@ cp .env.example .env   # adjust DATABASE_URL if needed
 
 ```bash
 .venv/bin/python scripts/run_snapshot.py            # fetch + write snapshots
-.venv/bin/python scripts/run_snapshot.py --dry-run  # fetch + print only
+.venv/bin/python scripts/run_spot_refresh.py        # daily reference spots
 .venv/bin/python -m pytest                          # test suite
 ```
 
-Schedule the snapshot hourly (matches Hyperliquid's hourly funding):
+Both scripts accept `--dry-run` (fetch + print, no DB write). API keys for the
+spot service go in `.env` (see `.env.example`): `METALS_DEV_API_KEY` (free
+tier, 100 req/month) and `EIA_API_KEY` (free registration; `DEMO_KEY` works
+for light testing).
+
+Schedule snapshots hourly (matches Hyperliquid's hourly funding) and spots
+daily (blueprint's macro cadence; ~30 Metals.Dev calls/month):
 
 ```cron
-5 * * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_snapshot.py
+5 * * * *  cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_snapshot.py
+15 13 * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_spot_refresh.py
 ```
 
 ## Layout
@@ -61,6 +70,8 @@ src/onchain_console/
   calcs.py               deterministic §7 math (Decimal; never LLM-computed)
   hyperliquid.py         info-API client + metaAndAssetCtxs parsing
   snapshot_service.py    M5: instruments → fetch per dex → market_snapshots
+  spot_prices.py         Metals.Dev + EIA clients (per-commodity spot)
+  spot_service.py        daily refresh → spot_prices ledger + stamping
 scripts/                 apply_migrations.py, run_snapshot.py
 tests/                   pytest suite + real fixture payload
 ```
