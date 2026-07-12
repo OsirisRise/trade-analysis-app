@@ -40,6 +40,24 @@ canonical unless I tell you it's changed.
 - Any ingestion/tagging code: run it against a small real or fixture payload
   and show me actual output, not a description of expected behavior.
 
+## Design decisions (binding on future build steps)
+
+- 2026-07-12 — **Energy reference prices measure physical spot, not the
+  futures the perps track.** EIA daily spot (WTI `RWTC`, Brent `RBRTE`,
+  Henry Hub `RNGWHHD`) is a physical/FOB price with a structural basis gap
+  to the front-month futures that perp oracles follow, AND it publishes
+  T-2..T-6 late. Commodities with this known basis gap: `wti_crude_oil`,
+  `brent_crude_oil`, `natural_gas`. Metals (`gold`, `silver`, `platinum`,
+  `palladium`, `copper_spot`) have NO such gap — Metals.Dev spot is
+  near-real-time (≤60s) and prices the same thing the metal perps track.
+  Decision (Caleb, 2026-07-12): keep EIA as the energy reference for now
+  and handle the gap with an explicit confidence downgrade plus
+  staleness-awareness — never treat an energy spot-vs-mark gap as a clean
+  tracking-error signal. RULE for build step 3: the §7.4
+  tracking_error_bps / data_confidence logic MUST branch energy vs. metals
+  on this categorization. Caleb is separately researching a real
+  futures-price feed — do not build toward one until he decides.
+
 ## Corrections log
 (Add an entry here every time I correct something, so it isn't repeated.)
 
@@ -51,12 +69,18 @@ canonical unless I tell you it's changed.
   never a truncated/`head`-ed view.
 - 2026-07-12 — Seeded a generic 'crude_oil' underlying (and mixed
   'wti_crude'/'brent' codes) instead of per-grade codes. Two independent
-  sources (Ostium's own docs, a Hyperliquid pairs list) agree the real
-  vocabulary is `wti_crude_oil` / `brent_crude_oil` — canonical everywhere
+  sources (ostium_commodities_schema.csv from Ostium's own docs, and
+  hyperliquid_commodities_schema.csv) agree the real vocabulary is
+  `wti_crude_oil` / `brent_crude_oil` — canonical everywhere
   now (0006_standardize_crude_vocabulary.sql). One commodity vocabulary
   across theses, rules, and instruments, or the step-6 joins silently miss.
-- 2026-07-12 — hyperliquid_pairs.csv listed symbols (HG-PERP, NG-PERP,
-  XPT-PERP, XPD-PERP) that don't exist on Hyperliquid; the live xyz-dex
-  symbols are xyz:COPPER / xyz:NATGAS / xyz:PLATINUM / xyz:PALLADIUM.
+- 2026-07-12 — hyperliquid_commodities_schema.csv listed symbols (HG-PERP,
+  NG-PERP, XPT-PERP, XPD-PERP) that don't exist on Hyperliquid; the live
+  xyz-dex symbols are xyz:COPPER / xyz:NATGAS / xyz:PLATINUM / xyz:PALLADIUM.
   Lesson: a third-party list identifies WHAT to check, never a symbol to
   seed directly — always confirm the exact string against the live API.
+- 2026-07-12 — Ostium rows were seeded with quote_asset='USDC', but Ostium's
+  own docs quote every market against USD (USDC is the collateral token, not
+  the quote currency); and Hyperliquid copper was seeded as 'copper' where
+  Ostium's docs use 'copper_spot'. Both fixed in 0009. Lesson: label
+  vocabulary comes from the venue's own docs, and collateral ≠ quote.

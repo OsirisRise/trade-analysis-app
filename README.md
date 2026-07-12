@@ -60,7 +60,14 @@ daily (blueprint's macro cadence; ~30 Metals.Dev calls/month):
 ```cron
 5 * * * *  cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_snapshot.py
 15 13 * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_spot_refresh.py
+30 13 * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_discrepancy_check.py
 ```
+
+The discrepancy check is a read-only diagnostic (not §7.4 tracking error):
+it prints the latest spot-vs-perp gap per commodity, tagged with spot age
+and the energy-vs-metals basis categorization from CLAUDE.md's design
+decisions. Default flag thresholds: metals 1%, energy 10% (adjust with
+`--metals-threshold` / `--energy-threshold`).
 
 ## Layout
 
@@ -72,6 +79,7 @@ src/onchain_console/
   snapshot_service.py    M5: instruments → fetch per dex → market_snapshots
   spot_prices.py         Metals.Dev + EIA clients (per-commodity spot)
   spot_service.py        daily refresh → spot_prices ledger + stamping
+  discrepancy.py         spot-vs-perp gap diagnostic (energy/metal aware)
 scripts/                 apply_migrations.py, run_snapshot.py
 tests/                   pytest suite + real fixture payload
 ```

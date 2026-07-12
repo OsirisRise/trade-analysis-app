@@ -1,8 +1,8 @@
 """Tests for the reference spot price clients (Metals.Dev + EIA).
 
-Fixtures: the two EIA files are real payloads captured live on 2026-07-12
-(DEMO_KEY); the Metals.Dev file is the verbatim sample response from their
-docs. Expected values are hand-derived from the fixture contents."""
+Fixtures: all three are real payloads captured live on 2026-07-12 (EIA via
+DEMO_KEY; Metals.Dev via the registered key — response only, no key
+material). Expected values are hand-derived from the fixture contents."""
 
 import json
 from datetime import datetime, timezone
@@ -54,27 +54,32 @@ class TestUnitConversion:
 class TestParseMetalsDev:
     def test_five_commodities_extracted(self, metals_payload):
         spots = {s.commodity_code: s for s in parse_metals_dev(metals_payload)}
-        assert set(spots) == {"gold", "silver", "platinum", "palladium", "copper"}
+        # copper_spot is the canonical vocabulary (0009, per Ostium docs)
+        assert set(spots) == {
+            "gold", "silver", "platinum", "palladium", "copper_spot"
+        }
 
     def test_precious_metals_pass_through_toz(self, metals_payload):
         spots = {s.commodity_code: s for s in parse_metals_dev(metals_payload)}
-        assert spots["gold"].price == Decimal("1923.86")
+        assert spots["gold"].price == Decimal("4120.515")
         assert spots["gold"].unit == "usd_per_toz"
-        assert spots["silver"].price == Decimal("22.905")
-        assert spots["platinum"].price == Decimal("916.569")
-        assert spots["palladium"].price == Decimal("1229.684")
+        assert spots["silver"].price == Decimal("59.892")
+        assert spots["platinum"].price == Decimal("1630.7")
+        assert spots["palladium"].price == Decimal("1273.369")
 
     def test_copper_converted_to_lb(self, metals_payload):
         spots = {s.commodity_code: s for s in parse_metals_dev(metals_payload)}
-        assert spots["copper"].price == Decimal("0.2584") * LBS_TO_TOZ_PRICE_FACTOR
-        assert spots["copper"].unit == "usd_per_lb"
+        # 0.4324 USD/toz × (453.59237/31.1034768) ≈ 6.3058 USD/lb — within
+        # 0.15% of xyz:COPPER's live mark, validating the $/lb convention
+        assert spots["copper_spot"].price == Decimal("0.4324") * LBS_TO_TOZ_PRICE_FACTOR
+        assert spots["copper_spot"].unit == "usd_per_lb"
         # quoted toz value preserved for auditability
-        assert spots["copper"].raw["quoted"] == "0.2584"
+        assert spots["copper_spot"].raw["quoted"] == "0.4324"
 
     def test_as_of_from_metal_timestamp(self, metals_payload):
         gold = parse_metals_dev(metals_payload)[0]
         assert gold.as_of == datetime(
-            2023, 7, 5, 6, 16, 2, 829000, tzinfo=timezone.utc
+            2026, 7, 12, 19, 55, 5, 664000, tzinfo=timezone.utc
         )
         assert gold.source == "metals.dev"
 

@@ -39,7 +39,8 @@ METALS_DEV_COMMODITIES = {
     "silver": ("silver", "usd_per_toz"),
     "platinum": ("platinum", "usd_per_toz"),
     "palladium": ("palladium", "usd_per_toz"),
-    "copper": ("copper", "usd_per_lb"),  # converted from toz
+    # 'copper_spot' is the canonical code (0009), matching Ostium's docs
+    "copper": ("copper_spot", "usd_per_lb"),  # converted from toz
 }
 
 # EIA series -> (route, commodity_code, expected units string, our unit label)
