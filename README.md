@@ -63,11 +63,26 @@ daily (blueprint's macro cadence; ~30 Metals.Dev calls/month):
 30 13 * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_discrepancy_check.py
 ```
 
-The discrepancy check is a read-only diagnostic (not §7.4 tracking error):
-it prints the latest spot-vs-perp gap per commodity, tagged with spot age
-and the energy-vs-metals basis categorization from CLAUDE.md's design
-decisions. Default flag thresholds: metals 1%, energy 10% (adjust with
-`--metals-threshold` / `--energy-threshold`).
+The discrepancy check is a read-only cross-venue diagnostic (not §7.4
+tracking error): for each commodity it prints every active perp across
+Hyperliquid (stored snapshot), BydFi (quoted live at check time), and
+Ostium (no data source until step 8) — gap vs. reference spot, funding
+normalized to 8h-equivalent (Hyperliquid pays hourly, BydFi every 4h),
+tradeability, and spot staleness, using the energy-vs-metals basis
+categorization from CLAUDE.md's design decisions. Default flag thresholds:
+metals 1%, energy 10% (adjust with `--metals-threshold` /
+`--energy-threshold`).
+
+## Venues
+
+| venue | type | data path | notes |
+|---|---|---|---|
+| Hyperliquid | DEX | `metaAndAssetCtxs` + `l2Book` (snapshot service) | commodity perps on the xyz builder dex; hourly funding; real order-book depth + margin tiers captured raw in `raw_payload` (`_l2_book`, `_margin_table`) |
+| BydFi | CEX | `www.bydfi.com/swap/public/{symbols,risk_limits}` — no key needed or allowed | 4h funding; linear USDT contracts; NO open-interest endpoint; depth is WebSocket-only; the documented `/v1/fapi/market/*` REST base URL is not published |
+| Ostium | DEX | `@ostium/builder-sdk` via `OstiumClient.createReadOnly()` ONLY (`ostium/read_client.js`, Node >= 18 — nvm has v24) | write methods throw INVALID_CONFIG in this mode; full trading surface is forbidden (see boundary comment in `ostium/read_client.js`) |
+
+All three venues are modeled tradeable (see CLAUDE.md); the app itself
+never executes anything anywhere.
 
 ## Layout
 
@@ -79,7 +94,9 @@ src/onchain_console/
   snapshot_service.py    M5: instruments → fetch per dex → market_snapshots
   spot_prices.py         Metals.Dev + EIA clients (per-commodity spot)
   spot_service.py        daily refresh → spot_prices ledger + stamping
-  discrepancy.py         spot-vs-perp gap diagnostic (energy/metal aware)
+  discrepancy.py         cross-venue gap/funding diagnostic (energy/metal aware)
+  bydfi.py               BydFi public market data (CEX; read-only, no key)
+ostium/                  read-only Ostium SDK reader (Node >= 18; see below)
 scripts/                 apply_migrations.py, run_snapshot.py
 tests/                   pytest suite + real fixture payload
 ```

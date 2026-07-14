@@ -10,7 +10,12 @@ from uuid import uuid4
 
 import pytest
 
-from onchain_console.hyperliquid import dex_of_symbol, parse_asset_ctxs
+from onchain_console.hyperliquid import (
+    dex_of_symbol,
+    margin_table_id_by_symbol,
+    margin_tables_by_id,
+    parse_asset_ctxs,
+)
 from onchain_console.snapshot_service import (
     Instrument,
     build_snapshot_row,
@@ -150,3 +155,54 @@ class TestCollectSnapshots:
             spot_by_underlying={"gold": Decimal("4105.80"), "silver": Decimal("1")},
         )
         assert rows[0].reference_spot_price == Decimal("4105.80")
+
+
+class TestRawCaptureExtras:
+    """Task 10 (2026-07-13): l2Book + margin tables ride inside raw_payload."""
+
+    @pytest.fixture
+    def l2_book(self):
+        return json.loads(
+            (Path(__file__).parent / "fixtures" / "hl_l2book_gold_sample.json")
+            .read_text()
+        )
+
+    def test_margin_tables_parsed_from_fixture_meta(self, payload):
+        meta, _ = payload
+        tables = margin_tables_by_id(meta)
+        # real xyz meta carries one explicit table (id 50, single 50x tier)
+        assert tables == {
+            50: {"description": "",
+                 "marginTiers": [{"lowerBound": "0.0", "maxLeverage": 50}]}
+        }
+        ids = margin_table_id_by_symbol(meta)
+        assert ids["xyz:GOLD"] == 25
+        assert ids["xyz:CL"] == 20
+
+    def test_l2_book_and_margin_table_embedded_in_raw_payload(
+        self, payload, l2_book
+    ):
+        rows = collect_snapshots(
+            [make_instrument("xyz:GOLD")],
+            fetch=lambda dex: payload,
+            fetch_l2=lambda symbol: l2_book,
+        )
+        raw = rows[0].raw_payload
+        assert raw["_l2_book"]["coin"] == "xyz:GOLD"
+        assert len(raw["_l2_book"]["levels"][0]) == 20  # real resting bids
+        # id 25 has no explicit marginTables entry (simple single-tier table)
+        assert raw["_margin_table"] == {"id": 25, "table": None}
+        # plain ctx keys still at top level (existing readers unaffected)
+        assert "markPx" in raw
+
+    def test_l2_book_failure_degrades_to_none(self, payload):
+        def boom(symbol):
+            raise RuntimeError("depth down")
+
+        rows = collect_snapshots(
+            [make_instrument("xyz:GOLD")],
+            fetch=lambda dex: payload,
+            fetch_l2=boom,
+        )
+        assert "_l2_book" not in rows[0].raw_payload
+        assert rows[0].mark_price is not None  # snapshot itself survived

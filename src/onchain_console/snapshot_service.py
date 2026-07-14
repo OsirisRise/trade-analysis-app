@@ -25,7 +25,10 @@ from onchain_console import calcs
 from onchain_console.hyperliquid import (
     AssetCtx,
     dex_of_symbol,
+    fetch_l2_book,
     fetch_meta_and_asset_ctxs,
+    margin_table_id_by_symbol,
+    margin_tables_by_id,
     parse_asset_ctxs,
 )
 
@@ -86,6 +89,8 @@ def build_snapshot_row(
     ctx: AssetCtx,
     captured_at: datetime,
     reference_spot_price: Decimal | None = None,
+    l2_book: dict | None = None,
+    margin_table: dict | None = None,
 ) -> SnapshotRow:
     prem = (
         calcs.premium_pct(ctx.mark_price, ctx.oracle_price)
@@ -107,6 +112,16 @@ def build_snapshot_row(
         spread = calcs.spread_bps_est(
             ctx.impact_bid_price, ctx.impact_ask_price, ctx.mid_price
         )
+    # Task 10 (2026-07-13): l2Book (real resting-order depth) and the
+    # asset's margin table ride along inside raw_payload as namespaced keys
+    # — raw capture only, nothing downstream reads them yet. Plain ctx keys
+    # stay at the top level so existing readers are unaffected.
+    raw_payload = dict(ctx.raw)
+    if l2_book is not None:
+        raw_payload["_l2_book"] = l2_book
+    if margin_table is not None:
+        raw_payload["_margin_table"] = margin_table
+
     return SnapshotRow(
         instrument_id=instrument.id,
         symbol=instrument.symbol,
@@ -124,7 +139,7 @@ def build_snapshot_row(
         impact_bid_price=ctx.impact_bid_price,
         impact_ask_price=ctx.impact_ask_price,
         spread_bps_est=spread,
-        raw_payload=ctx.raw,
+        raw_payload=raw_payload,
     )
 
 
@@ -133,18 +148,27 @@ def collect_snapshots(
     captured_at: datetime | None = None,
     fetch=fetch_meta_and_asset_ctxs,
     spot_by_underlying: dict | None = None,
+    fetch_l2=None,
 ) -> list[SnapshotRow]:
-    """One API call per distinct dex (rate-limit friendly), then map
-    each instrument symbol to its asset context. spot_by_underlying carries
-    the latest known reference spot per commodity (spot_prices ledger, 0008);
-    rows copy it so §7.4 tracking math has a same-row reference."""
+    """One metaAndAssetCtxs call per distinct dex (rate-limit friendly),
+    then map each instrument symbol to its asset context.
+
+    spot_by_underlying carries the latest known reference spot per commodity
+    (spot_prices ledger, 0008); rows copy it so §7.4 tracking math has a
+    same-row reference. fetch_l2 (e.g. fetch_l2_book) adds one l2Book call
+    per instrument; a failed depth fetch degrades to None rather than
+    sinking the whole snapshot run."""
     captured_at = captured_at or datetime.now(timezone.utc)
     spot_by_underlying = spot_by_underlying or {}
     dexes = sorted({dex_of_symbol(i.symbol) for i in instruments})
     ctx_by_symbol: dict[str, AssetCtx] = {}
+    margin_tables: dict[int, dict] = {}
+    table_id_by_symbol: dict[str, int | None] = {}
     for dex in dexes:
         meta, asset_ctxs = fetch(dex)
         ctx_by_symbol.update(parse_asset_ctxs(meta, asset_ctxs))
+        margin_tables.update(margin_tables_by_id(meta))
+        table_id_by_symbol.update(margin_table_id_by_symbol(meta))
 
     rows: list[SnapshotRow] = []
     for instrument in instruments:
@@ -155,12 +179,26 @@ def collect_snapshots(
                 instrument.symbol,
             )
             continue
+        l2_book = None
+        if fetch_l2 is not None:
+            try:
+                l2_book = fetch_l2(instrument.symbol)
+            except Exception:
+                log.warning("l2Book fetch failed for %s", instrument.symbol)
+        table_id = table_id_by_symbol.get(instrument.symbol)
+        margin_table = None
+        if table_id is not None:
+            # ids without an explicit marginTables entry are simple
+            # single-tier tables; store the reference either way.
+            margin_table = {"id": table_id, "table": margin_tables.get(table_id)}
         rows.append(
             build_snapshot_row(
                 instrument,
                 ctx,
                 captured_at,
                 reference_spot_price=spot_by_underlying.get(instrument.underlying),
+                l2_book=l2_book,
+                margin_table=margin_table,
             )
         )
     return rows
@@ -205,7 +243,9 @@ def run(conn: psycopg.Connection, dry_run: bool = False) -> list[SnapshotRow]:
         log.warning("no active Hyperliquid perp instruments seeded")
         return []
     rows = collect_snapshots(
-        instruments, spot_by_underlying=latest_spot_by_commodity(conn)
+        instruments,
+        spot_by_underlying=latest_spot_by_commodity(conn),
+        fetch_l2=fetch_l2_book,
     )
     if dry_run:
         log.info("dry run — %d rows built, nothing written", len(rows))

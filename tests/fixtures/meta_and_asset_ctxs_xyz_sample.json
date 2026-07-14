@@ -31,6 +31,20 @@
         "growthMode": "enabled",
         "lastGrowthModeChangeTime": "2026-03-04T14:33:56.611209792"
       }
+    ],
+    "marginTables": [
+      [
+        50,
+        {
+          "description": "",
+          "marginTiers": [
+            {
+              "lowerBound": "0.0",
+              "maxLeverage": 50
+            }
+          ]
+        }
+      ]
     ]
   },
   [

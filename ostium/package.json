@@ -1,0 +1,13 @@
+{
+  "name": "ostium-readonly-reader",
+  "private": true,
+  "description": "Read-only Ostium data reader for the analysis console. READ-ONLY BY CONSTRUCTION - see read_client.js boundary comment.",
+  "type": "module",
+  "scripts": {
+    "pairs": "node read_client.js pairs",
+    "prices": "node read_client.js prices"
+  },
+  "dependencies": {
+    "@ostium/builder-sdk": "^0.5.0"
+  }
+}

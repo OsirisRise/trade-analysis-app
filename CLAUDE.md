@@ -21,10 +21,12 @@ canonical unless I tell you it's changed.
   certainty from free data sources.
 - Use the exact field names, table schemas, and formulas from the blueprint
   (§5–§8) — don't invent alternatives or "improve" them without asking first.
-- Hyperliquid is REFERENCE-ONLY — never a trade candidate (Caleb can't
-  legally trade it from the US). Ostium is the only tradeable venue
-  (PAXG/XAUT tokenized spot are also tradeable). Anywhere trade candidates
-  get generated, filter instruments WHERE tradeable = true.
+- Hyperliquid, Ostium, and BydFi are ALL modeled as tradeable venues
+  (tradeable = true), alongside PAXG/XAUT tokenized spot. Which venue Caleb
+  actually uses for any manual trade is his discretion and outside this
+  app's concern — the app never executes anything on any venue, ever.
+  Candidate generation (M7) still filters instruments WHERE tradeable =
+  true; the column remains meaningful metadata even with all venues on.
 
 ## Stack
 - PostgreSQL (jsonb for raw payloads/tags, UUID PKs; TimescaleDB added later
@@ -84,3 +86,10 @@ canonical unless I tell you it's changed.
   the quote currency); and Hyperliquid copper was seeded as 'copper' where
   Ostium's docs use 'copper_spot'. Both fixed in 0009. Lesson: label
   vocabulary comes from the venue's own docs, and collateral ≠ quote.
+- 2026-07-13 — Replaced the 2026-07-12 hard rule "Hyperliquid is
+  REFERENCE-ONLY / Ostium the only tradeable venue." This is a decision
+  change, not a contradiction: the earlier rule reflected Caleb's US
+  trading-access situation at the time, which he says has since evolved.
+  All three venues (Hyperliquid, Ostium, BydFi) are now modeled tradeable
+  (0010). The app's own boundary is unchanged either way — analysis-only,
+  no execution capability on any venue.

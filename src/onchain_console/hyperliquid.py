@@ -52,6 +52,34 @@ def fetch_meta_and_asset_ctxs(
     return meta, asset_ctxs
 
 
+def fetch_l2_book(
+    symbol: str, session: requests.Session | None = None
+) -> dict:
+    """POST {"type":"l2Book","coin":...} — real resting-order depth (up to
+    20 levels/side) from the on-chain order book. Raw capture only; no
+    scoring logic reads this yet (Task 11 proposal pending). Builder-dex
+    assets use their prefixed name ('xyz:GOLD') as the coin."""
+    http = session or requests
+    resp = http.post(
+        HYPERLIQUID_INFO_URL, json={"type": "l2Book", "coin": symbol}, timeout=30
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def margin_tables_by_id(meta: dict) -> dict[int, dict]:
+    """meta.marginTables is [[id, {description, marginTiers}], ...] —
+    Hyperliquid's tiered leverage-by-notional data, already present in every
+    metaAndAssetCtxs response (no extra endpoint). Assets reference it via
+    universe[].marginTableId; ids without an explicit entry are simple
+    single-tier tables (the asset's maxLeverage applies at any notional)."""
+    return {entry[0]: entry[1] for entry in meta.get("marginTables", [])}
+
+
+def margin_table_id_by_symbol(meta: dict) -> dict[str, int | None]:
+    return {u["name"]: u.get("marginTableId") for u in meta.get("universe", [])}
+
+
 def _dec(value) -> Decimal | None:
     return None if value is None else Decimal(str(value))
 

@@ -29,6 +29,8 @@ from decimal import Decimal
 
 import psycopg
 
+from onchain_console import calcs
+
 ENERGY_COMMODITIES = frozenset({"wti_crude_oil", "brent_crude_oil", "natural_gas"})
 
 METALS_FLAG_THRESHOLD = Decimal("0.01")   # 1%
@@ -71,8 +73,12 @@ def should_flag(
 class InstrumentGap:
     venue: str
     symbol: str
-    mark_price: Decimal
-    gap: Decimal
+    venue_type: str | None    # 'CEX' | 'DEX' | None (tokenized spot)
+    tradeable: bool
+    price_basis: str          # 'snapshot' | 'live' | 'none'
+    mark_price: Decimal | None
+    gap: Decimal | None       # vs. reference spot; None when no price yet
+    funding_rate_8h: Decimal | None  # normalized so venues are comparable
     flagged: bool
 
 
@@ -89,64 +95,109 @@ class DiscrepancyReport:
     instruments: list[InstrumentGap] = field(default_factory=list)
 
 
-def load_latest_pairs(conn: psycopg.Connection) -> list[tuple]:
-    """(commodity, spot price/unit/source/as_of, venue, symbol, mark) for
-    every commodity that has both a spot entry and an active instrument
-    with at least one snapshot."""
+def load_latest_spots(conn: psycopg.Connection) -> list[tuple]:
+    """(commodity_code, price, unit, source, as_of) — latest per commodity."""
     return conn.execute(
         """
-        WITH latest_spot AS (
-            SELECT DISTINCT ON (commodity_code)
-                   commodity_code, price, unit, source, as_of
-            FROM spot_prices
-            ORDER BY commodity_code, as_of DESC
-        ),
-        latest_snap AS (
-            SELECT DISTINCT ON (s.instrument_id)
-                   i.underlying, i.venue, i.symbol, s.mark_price
-            FROM market_snapshots s
-            JOIN instruments i ON i.id = s.instrument_id
-            WHERE i.status = 'active'
-            ORDER BY s.instrument_id, s.captured_at DESC
-        )
-        SELECT ls.commodity_code, ls.price, ls.unit, ls.source, ls.as_of,
-               sn.venue, sn.symbol, sn.mark_price
-        FROM latest_spot ls
-        JOIN latest_snap sn ON sn.underlying = ls.commodity_code
-        ORDER BY ls.commodity_code, sn.venue, sn.symbol
+        SELECT DISTINCT ON (commodity_code)
+               commodity_code, price, unit, source, as_of
+        FROM spot_prices
+        ORDER BY commodity_code, as_of DESC
         """
     ).fetchall()
 
 
-def build_reports(
-    pairs: list[tuple],
+def load_active_instruments(conn: psycopg.Connection) -> list[tuple]:
+    """Every active perp with its latest snapshot mark/funding when one
+    exists (Hyperliquid has snapshots; BydFi is quoted live at check time;
+    Ostium has no data source until step 8 — surfaces as 'none')."""
+    return conn.execute(
+        """
+        SELECT i.underlying, i.venue, i.symbol, i.venue_type, i.tradeable,
+               i.funding_interval_minutes,
+               snap.mark_price, snap.funding_rate_interval
+        FROM instruments i
+        LEFT JOIN LATERAL (
+            SELECT s.mark_price, s.funding_rate_interval
+            FROM market_snapshots s
+            WHERE s.instrument_id = i.id
+            ORDER BY s.captured_at DESC
+            LIMIT 1
+        ) snap ON true
+        WHERE i.status = 'active' AND i.instrument_type = 'perp'
+        ORDER BY i.underlying, i.venue, i.symbol
+        """
+    ).fetchall()
+
+
+def build_cross_venue_reports(
+    spots: list[tuple],
+    instruments: list[tuple],
+    live_quotes: dict | None = None,
     now: datetime | None = None,
     metals_threshold: Decimal = METALS_FLAG_THRESHOLD,
     energy_threshold: Decimal = ENERGY_FLAG_THRESHOLD,
 ) -> list[DiscrepancyReport]:
+    """Cross-venue comparison per commodity: every active perp on every
+    venue, its gap to the reference spot, and funding normalized to an
+    8h-equivalent rate so Hyperliquid (1h) and BydFi (4h) are comparable.
+
+    live_quotes maps venue symbol -> object with mark_price, funding_rate,
+    funding_interval_minutes attributes (BydfiContract), used for venues
+    quoted live at check time instead of from stored snapshots.
+    """
     now = now or datetime.now(timezone.utc)
-    by_commodity: dict[str, DiscrepancyReport] = {}
-    for commodity, price, unit, source, as_of, venue, symbol, mark in pairs:
-        if commodity not in by_commodity:
-            by_commodity[commodity] = DiscrepancyReport(
-                commodity_code=commodity,
-                category=categorize(commodity),
-                spot_price=price,
-                spot_unit=unit,
-                spot_source=source,
-                spot_as_of=as_of,
-                spot_age_hours=spot_age_hours(as_of, now),
-            )
-        report = by_commodity[commodity]
-        gap = pct_gap(mark, price)
+    live_quotes = live_quotes or {}
+
+    reports: dict[str, DiscrepancyReport] = {}
+    for commodity, price, unit, source, as_of in spots:
+        reports[commodity] = DiscrepancyReport(
+            commodity_code=commodity,
+            category=categorize(commodity),
+            spot_price=price,
+            spot_unit=unit,
+            spot_source=source,
+            spot_as_of=as_of,
+            spot_age_hours=spot_age_hours(as_of, now),
+        )
+
+    for (underlying, venue, symbol, venue_type, tradeable,
+         interval_minutes, snap_mark, snap_funding) in instruments:
+        report = reports.get(underlying)
+        if report is None:
+            continue  # instrument's commodity has no reference spot yet
+
+        mark = funding = None
+        basis = "none"
+        if snap_mark is not None:
+            mark, funding, basis = snap_mark, snap_funding, "snapshot"
+        quote = live_quotes.get(symbol)
+        if quote is not None and quote.mark_price is not None:
+            mark, funding, basis = quote.mark_price, quote.funding_rate, "live"
+            interval_minutes = quote.funding_interval_minutes or interval_minutes
+
+        gap = pct_gap(mark, report.spot_price) if mark is not None else None
+        funding_8h = (
+            calcs.funding_rate_8h_equiv(funding, interval_minutes)
+            if funding is not None and interval_minutes
+            else None
+        )
         report.instruments.append(
             InstrumentGap(
                 venue=venue,
                 symbol=symbol,
+                venue_type=venue_type,
+                tradeable=tradeable,
+                price_basis=basis,
                 mark_price=mark,
                 gap=gap,
-                flagged=should_flag(gap, report.category,
-                                    metals_threshold, energy_threshold),
+                funding_rate_8h=funding_8h,
+                flagged=(
+                    should_flag(gap, report.category,
+                                metals_threshold, energy_threshold)
+                    if gap is not None else False
+                ),
             )
         )
-    return list(by_commodity.values())
+
+    return [r for r in reports.values() if r.instruments]
