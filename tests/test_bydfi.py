@@ -2,12 +2,18 @@
 captured live on 2026-07-13 (trimmed to the 9 seeded commodities + BTC)."""
 
 import json
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
-from onchain_console.bydfi import parse_contracts, parse_risk_limits
+from onchain_console.bydfi import (
+    build_risk_tier_profile_rows,
+    parse_contracts,
+    parse_risk_limits,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -67,3 +73,38 @@ class TestParseRiskLimits:
         # raw tier fields: mv = max notional, mmr = maintenance margin rate
         assert level_1["s"] == "XAU-USDT"
         assert level_1["mmr"] == 0.5
+
+
+class TestBuildRiskTierProfileRows:
+    """0013 (prompt 3): per-symbol liquidity_profiles row construction
+    against the real captured risk_limits fixture."""
+
+    CAPTURED_AT = datetime(2026, 7, 14, 13, 45, tzinfo=timezone.utc)
+
+    def test_rows_for_symbols_present_on_both_sides(self, risk_payload):
+        limits = parse_risk_limits(risk_payload)
+        ids = {"XAU-USDT": uuid4(), "CL-USDT": uuid4()}
+
+        rows = build_risk_tier_profile_rows(ids, limits, self.CAPTURED_AT)
+
+        assert len(rows) == 2
+        by_id = {r["instrument_id"]: r for r in rows}
+        xau = by_id[ids["XAU-USDT"]]
+        assert xau["profile_type"] == "risk_tiers"
+        assert xau["provenance"] == "venue_risk_config"
+        assert xau["captured_at"] == self.CAPTURED_AT
+        # payload is that symbol's full tier list from the fixture
+        assert xau["payload"] == limits["XAU-USDT"]
+        assert len(xau["payload"]) == 20
+        assert all(t["s"] == "XAU-USDT" for t in xau["payload"])
+
+    def test_symbols_on_only_one_side_are_skipped(self, risk_payload):
+        limits = parse_risk_limits(risk_payload)
+        ids = {
+            "XAU-USDT": uuid4(),
+            "NATGAS-USDT": uuid4(),  # seeded, but not in this fixture
+        }
+        rows = build_risk_tier_profile_rows(ids, limits, self.CAPTURED_AT)
+        assert [r["instrument_id"] for r in rows] == [ids["XAU-USDT"]]
+        # and limits-only symbols (CL-USDT here) produce nothing either
+        assert build_risk_tier_profile_rows({}, limits, self.CAPTURED_AT) == []

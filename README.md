@@ -61,6 +61,7 @@ daily (blueprint's macro cadence; ~30 Metals.Dev calls/month):
 5 * * * *  cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_snapshot.py
 15 13 * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_spot_refresh.py
 30 13 * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_discrepancy_check.py
+45 13 * * * cd /Users/calebbartlett/trade-analysis-app && .venv/bin/python scripts/run_bydfi_liquidity_capture.py
 ```
 
 The discrepancy check is a read-only cross-venue diagnostic (not §7.4

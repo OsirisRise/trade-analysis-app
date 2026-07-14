@@ -59,6 +59,21 @@ canonical unless I tell you it's changed.
   tracking_error_bps / data_confidence logic MUST branch energy vs. metals
   on this categorization. Caleb is separately researching a real
   futures-price feed — do not build toward one until he decides.
+- 2026-07-14 — **liquidity_profiles (0013) holds all liquidity/risk-tier
+  signals in one table, labeled by provenance.** Three kinds of signal
+  feed the future §7.5 liquidity score: real resting orders from actual
+  matching engines (Hyperliquid l2Book; someday BydFi WS depth), venue
+  risk configuration (Hyperliquid marginTables, BydFi risk_limit tiers),
+  and synthetic simulations (Ostium getSimOrderbook/getSimSlippage —
+  oracle+vault model, no matching engine exists). RULE for build step 3:
+  real and synthetic signals must NEVER be presented as equivalent
+  numbers — provenance travels with the value wherever it surfaces, and
+  any §7.5 input with provenance='synthetic_simulation' caps that
+  instrument's data_confidence at 'medium'. Two legs are DELIBERATELY
+  deferred, not missing: (1) BydFi order-book depth — WebSocket-only, no
+  WS client exists in this project; (2) Ostium synthetic-sim capture —
+  waits for step 8's full Ostium activation. Don't "fix" either in
+  passing.
 
 ## Corrections log
 (Add an entry here every time I correct something, so it isn't repeated.)

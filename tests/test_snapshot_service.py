@@ -18,6 +18,7 @@ from onchain_console.hyperliquid import (
 )
 from onchain_console.snapshot_service import (
     Instrument,
+    build_liquidity_profile_rows,
     build_snapshot_row,
     collect_snapshots,
 )
@@ -194,6 +195,47 @@ class TestRawCaptureExtras:
         assert raw["_margin_table"] == {"id": 25, "table": None}
         # plain ctx keys still at top level (existing readers unaffected)
         assert "markPx" in raw
+
+    def test_liquidity_profile_rows_from_fixture_data(self, payload, l2_book):
+        """0013: pure mapping of Task 10's captured data to
+        liquidity_profiles rows, using the real fixtures."""
+        meta, _ = payload
+        margin_table = {
+            "id": 25,
+            "table": margin_tables_by_id(meta).get(25),  # None: implicit table
+        }
+        iid = uuid4()
+        captured_at = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+
+        rows = build_liquidity_profile_rows(iid, captured_at, l2_book, margin_table)
+
+        assert [r["profile_type"] for r in rows] == ["order_book", "risk_tiers"]
+        book, tiers = rows
+        assert book["provenance"] == "real_resting_orders"
+        assert book["payload"]["coin"] == "xyz:GOLD"
+        assert len(book["payload"]["levels"][0]) == 20  # real fixture depth
+        assert tiers["provenance"] == "venue_risk_config"
+        assert tiers["payload"] == {"id": 25, "table": None}
+        assert all(r["instrument_id"] == iid for r in rows)
+        assert all(r["captured_at"] == captured_at for r in rows)
+
+    def test_liquidity_profile_rows_partial_and_empty(self, payload, l2_book):
+        meta, _ = payload
+        explicit_table = {"id": 50, "table": margin_tables_by_id(meta)[50]}
+        iid = uuid4()
+        at = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+
+        (only_book,) = build_liquidity_profile_rows(iid, at, l2_book, None)
+        assert only_book["profile_type"] == "order_book"
+
+        (only_tiers,) = build_liquidity_profile_rows(iid, at, None, explicit_table)
+        assert only_tiers["profile_type"] == "risk_tiers"
+        # real fixture marginTables entry rides through as the payload
+        assert only_tiers["payload"]["table"]["marginTiers"] == [
+            {"lowerBound": "0.0", "maxLeverage": 50}
+        ]
+
+        assert build_liquidity_profile_rows(iid, at, None, None) == []
 
     def test_l2_book_failure_degrades_to_none(self, payload):
         def boom(symbol):

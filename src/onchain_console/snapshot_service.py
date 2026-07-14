@@ -204,6 +204,40 @@ def collect_snapshots(
     return rows
 
 
+def build_liquidity_profile_rows(
+    instrument_id: UUID,
+    captured_at: datetime,
+    l2_book: dict | None,
+    margin_table: dict | None,
+) -> list[dict]:
+    """Pure mapping from already-fetched depth/margin data (Task 10) to
+    liquidity_profiles row dicts (0013). No network, no DB.
+
+    l2_book is real resting orders from the matching engine; margin_table
+    is venue risk configuration — the provenance labels keep those from
+    ever being presented as the same kind of number (0013 design note).
+    Returns 0-2 rows sharing captured_at with the paired snapshot row.
+    """
+    rows: list[dict] = []
+    if l2_book is not None:
+        rows.append({
+            "instrument_id": instrument_id,
+            "captured_at": captured_at,
+            "profile_type": "order_book",
+            "provenance": "real_resting_orders",
+            "payload": l2_book,
+        })
+    if margin_table is not None:
+        rows.append({
+            "instrument_id": instrument_id,
+            "captured_at": captured_at,
+            "profile_type": "risk_tiers",
+            "provenance": "venue_risk_config",
+            "payload": margin_table,
+        })
+    return rows
+
+
 def insert_snapshots(conn: psycopg.Connection, rows: list[SnapshotRow]) -> int:
     with conn.cursor() as cur:
         for r in rows:
@@ -229,6 +263,27 @@ def insert_snapshots(conn: psycopg.Connection, rows: list[SnapshotRow]) -> int:
                     json.dumps(r.raw_payload),
                 ),
             )
+            # 0013: the same already-fetched l2Book / margin table (Task 10,
+            # riding in raw_payload) also lands in liquidity_profiles.
+            for lp in build_liquidity_profile_rows(
+                r.instrument_id,
+                r.captured_at,
+                r.raw_payload.get("_l2_book"),
+                r.raw_payload.get("_margin_table"),
+            ):
+                cur.execute(
+                    """
+                    INSERT INTO liquidity_profiles
+                        (instrument_id, captured_at, profile_type,
+                         provenance, payload)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        lp["instrument_id"], lp["captured_at"],
+                        lp["profile_type"], lp["provenance"],
+                        json.dumps(lp["payload"]),
+                    ),
+                )
     conn.commit()
     return len(rows)
 

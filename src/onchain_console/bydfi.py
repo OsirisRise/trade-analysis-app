@@ -128,3 +128,28 @@ def parse_contracts(payload: dict) -> dict[str, BydfiContract]:
 def parse_risk_limits(payload: dict) -> dict[str, list[dict]]:
     """symbol -> raw tier list (raw storage only, per Task 10/11 scope)."""
     return dict(_unwrap(payload))
+
+
+def build_risk_tier_profile_rows(
+    instrument_ids_by_symbol: dict,
+    limits_by_symbol: dict[str, list[dict]],
+    captured_at,
+) -> list[dict]:
+    """Pure mapping from parsed risk limits to liquidity_profiles row dicts
+    (0013): one risk_tiers/venue_risk_config row per seeded symbol that the
+    API response actually covers. Symbols on only one side are skipped —
+    the caller decides whether a missing symbol is worth a warning.
+    No network, no DB."""
+    rows: list[dict] = []
+    for symbol, instrument_id in sorted(instrument_ids_by_symbol.items()):
+        tiers = limits_by_symbol.get(symbol)
+        if tiers is None:
+            continue
+        rows.append({
+            "instrument_id": instrument_id,
+            "captured_at": captured_at,
+            "profile_type": "risk_tiers",
+            "provenance": "venue_risk_config",
+            "payload": tiers,
+        })
+    return rows
