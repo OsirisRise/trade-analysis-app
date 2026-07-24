@@ -31,6 +31,12 @@ import psycopg
 
 from onchain_console import calcs
 
+# The active-perp universe predicate, defined once so every consumer scores
+# the same set. scoring.compute_liquidity_score reuses it (CLAUDE.md /
+# prompt 4: "matching the exact predicate already used in discrepancy.py —
+# reuse it, don't reinvent"). Assumes the instruments table is aliased `i`.
+ACTIVE_PERP_PREDICATE = "i.status = 'active' AND i.instrument_type = 'perp'"
+
 ENERGY_COMMODITIES = frozenset({"wti_crude_oil", "brent_crude_oil", "natural_gas"})
 
 METALS_FLAG_THRESHOLD = Decimal("0.01")   # 1%
@@ -124,7 +130,7 @@ def load_active_instruments(conn: psycopg.Connection) -> list[tuple]:
             ORDER BY s.captured_at DESC
             LIMIT 1
         ) snap ON true
-        WHERE i.status = 'active' AND i.instrument_type = 'perp'
+        WHERE """ + ACTIVE_PERP_PREDICATE + """
         ORDER BY i.underlying, i.venue, i.symbol
         """
     ).fetchall()
